@@ -1,0 +1,16 @@
+{
+  "model_type": "RandomForest",
+  "data_source": "travis",
+  "training_date": "2026-05-12T20:33:17.654114+00:00",
+  "f1_score": 1.0,
+  "f2_score": 1.0,
+  "auc_roc": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "decision_threshold": 0.12,
+  "predicted_fail_rate": 0.19975,
+  "n_features": 23,
+  "n_train_samples": 16000,
+  "n_test_samples": 4000,
+  "best_params": {}
+}

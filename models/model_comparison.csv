@@ -1,0 +1,4 @@
+model,precision,recall,f1_score,f2_score,auc_roc,threshold,predicted_fail_rate
+LogisticRegression,0.951073985680191,0.9974968710888611,0.9737324373854612,0.9878532473971244,0.9970769459950524,0.6,0.2095
+RandomForest,1.0,1.0,1.0,1.0,1.0,0.12,0.19975
+XGBoost,1.0,1.0,1.0,1.0,1.0,0.1,0.19975

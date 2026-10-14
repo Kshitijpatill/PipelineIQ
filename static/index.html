@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CI/CD Build Failure Predictor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:opsz,wght@6..144,1..1000&family=Syncopate:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f1e7;
+        --paper: #fffdf8;
+        --paper-soft: #fbf7ef;
+        --ink: #12261d;
+        --muted: #6c756d;
+        --line: #ded6c8;
+        --line-strong: #c7bca8;
+        --green: #173f2b;
+        --green-2: #2f6b4f;
+        --green-soft: #e8f1e9;
+        --pass: #173f2b;
+        --beige: #e8dece;
+        --fail: #9d2f25;
+        --fail-soft: #f6e4df;
+        --warn: #9a6a14;
+        --shadow: 0 22px 60px rgba(36, 31, 22, 0.11);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(246, 241, 231, 0.95)),
+          repeating-linear-gradient(90deg, rgba(23, 63, 43, 0.025) 0 1px, transparent 1px 96px),
+          var(--bg);
+        color: var(--ink);
+        font-family: "Google Sans Flex", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1240px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 42px 0;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        align-items: end;
+        margin-bottom: 22px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        margin-bottom: 8px;
+        font-family: "Syncopate", sans-serif;
+        font-size: clamp(2rem, 5vw, 3.55rem);
+        font-weight: 700;
+        line-height: 0.98;
+        letter-spacing: 0;
+        max-width: 920px;
+      }
+
+      h2 {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-family: "Syncopate", sans-serif;
+        font-size: 1rem;
+        letter-spacing: 0;
+        margin-bottom: 14px;
+      }
+
+      h3 {
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+      }
+
+      .subtitle,
+      .muted {
+        color: var(--muted);
+      }
+
+      .subtitle {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 1.02rem;
+        font-weight: 520;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--line);
+        background: rgba(255, 253, 248, 0.86);
+        color: var(--muted);
+        border-radius: 4px;
+        padding: 10px 12px;
+        white-space: nowrap;
+        font-weight: 750;
+        font-size: 0.82rem;
+        box-shadow: 0 10px 30px rgba(36, 31, 22, 0.06);
+      }
+
+      .status-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(380px, 0.94fr) minmax(420px, 1.06fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .panel {
+        background: rgba(255, 253, 248, 0.92);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      }
+
+      .panel:hover {
+        border-color: var(--line-strong);
+        box-shadow: 0 28px 70px rgba(36, 31, 22, 0.13);
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        border: 1px solid var(--line);
+        background: var(--paper-soft);
+        color: var(--muted);
+        border-radius: 3px;
+        font-weight: 760;
+        cursor: pointer;
+        transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+      }
+
+      .tab.active {
+        border-color: var(--green);
+        color: var(--green);
+        background: var(--green-soft);
+      }
+
+      .tab:hover,
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      .mode {
+        display: none;
+      }
+
+      .mode.active {
+        display: block;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 300px;
+        resize: vertical;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #fbf8f0;
+        color: #26342d;
+        padding: 12px;
+        font: 0.86rem Consolas, "SFMono-Regular", monospace;
+        line-height: 1.45;
+        transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+      }
+
+      input,
+      select {
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: #fffdf8;
+        color: var(--ink);
+        padding: 0 10px;
+        font: inherit;
+        transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+      }
+
+      textarea:focus,
+      input:focus,
+      select:focus {
+        border-color: var(--green-2);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.12);
+      }
+
+      input[type="range"] {
+        padding: 0;
+        accent-color: var(--green);
+      }
+
+      input[type="file"] {
+        padding: 9px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 0.83rem;
+        font-weight: 720;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .range-row {
+        display: grid;
+        grid-template-columns: 1fr 52px;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        min-height: 44px;
+        border: 1px solid var(--green);
+        border-radius: 3px;
+        background: var(--green);
+        color: #fffdf8;
+        font-weight: 850;
+        cursor: pointer;
+        font-family: "Google Sans Flex", ui-sans-serif, sans-serif;
+        transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease;
+      }
+
+      button.secondary {
+        border: 1px solid var(--line-strong);
+        background: #fffdf8;
+        color: var(--green);
+      }
+
+      button:hover {
+        box-shadow: 0 14px 28px rgba(23, 63, 43, 0.14);
+      }
+
+      button.secondary:hover {
+        border-color: var(--green);
+        box-shadow: 0 12px 24px rgba(36, 31, 22, 0.08);
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: wait;
+      }
+
+      .right-stack {
+        display: grid;
+        gap: 18px;
+      }
+
+      #result {
+        min-height: 318px;
+      }
+
+      .empty,
+      .error {
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .error {
+        color: var(--fail);
+      }
+
+      .badge {
+        display: inline-grid;
+        place-items: center;
+        min-width: 124px;
+        padding: 14px 18px;
+        border-radius: 4px;
+        font-family: "Syncopate", sans-serif;
+        font-size: 2rem;
+        font-weight: 950;
+        letter-spacing: 0;
+      }
+
+      .badge.pass {
+        background: var(--green-soft);
+        color: var(--green);
+        border: 1px solid rgba(23, 63, 43, 0.35);
+      }
+
+      .badge.fail {
+        background: var(--fail-soft);
+        color: var(--fail);
+        border: 1px solid rgba(157, 47, 37, 0.32);
+      }
+
+      .metric {
+        margin-top: 18px;
+      }
+
+      .metric-row,
+      .factor-label,
+      .feature-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .metric-row,
+      .factor-label {
+        color: var(--muted);
+        font-weight: 750;
+      }
+
+      .track,
+      .factor-track {
+        margin-top: 8px;
+        height: 10px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: #eee6d8;
+        border: 1px solid var(--line);
+      }
+
+      .fill {
+        height: 100%;
+        background: var(--green);
+      }
+
+      .factor-fill {
+        height: 100%;
+        background: var(--green-2);
+      }
+
+      .risk {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 7px 10px;
+        border-radius: 3px;
+        background: var(--beige);
+        color: var(--green);
+        font-weight: 850;
+        text-transform: uppercase;
+        font-size: 0.76rem;
+      }
+
+      .factors,
+      .features {
+        margin-top: 18px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .feature-row {
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 8px;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .feature-row strong {
+        color: var(--ink);
+      }
+
+      .spinner {
+        width: 42px;
+        height: 42px;
+        border: 3px solid var(--beige);
+        border-top-color: var(--green);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      .loading {
+        min-height: 260px;
+        display: grid;
+        place-items: center;
+      }
+
+      .hint {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
+      }
+
+      .icon {
+        width: 17px;
+        height: 17px;
+        flex: 0 0 auto;
+        stroke-width: 1.8;
+      }
+
+      h2 .icon {
+        color: var(--green);
+      }
+
+      .icon-sprite {
+        display: none;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (max-width: 940px) {
+        header,
+        .workspace {
+          grid-template-columns: 1fr;
+          display: grid;
+        }
+
+        header {
+          align-items: start;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .form-grid,
+        .actions,
+        .tabs {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 6.5h16v11H4z" />
+        <path d="m7 10 2 2-2 2" />
+        <path d="M12 15h4" />
+      </symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 15V4" />
+        <path d="m8 8 4-4 4 4" />
+        <path d="M5 16v3h14v-3" />
+      </symbol>
+      <symbol id="icon-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h7" />
+        <path d="M15 7h5" />
+        <path d="M13 5v4" />
+        <path d="M4 17h4" />
+        <path d="M12 17h8" />
+        <path d="M10 15v4" />
+      </symbol>
+      <symbol id="icon-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v4" />
+        <path d="M12 17v4" />
+        <path d="M3 12h4" />
+        <path d="M17 12h4" />
+        <path d="m6.5 6.5 2.8 2.8" />
+        <path d="m14.7 14.7 2.8 2.8" />
+        <path d="m17.5 6.5-2.8 2.8" />
+        <path d="m9.3 14.7-2.8 2.8" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6 9 17l-5-5" />
+      </symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19h16" />
+        <path d="M7 16V9" />
+        <path d="M12 16V5" />
+        <path d="M17 16v-4" />
+      </symbol>
+      <symbol id="icon-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5" rx="7" ry="3" />
+        <path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" />
+        <path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" />
+      </symbol>
+    </svg>
+    <main>
+      <header>
+        <div>
+          <h1>CI/CD Build Failure Predictor</h1>
+          <p class="subtitle">Demo gate for raw build logs, commit metadata, XGBoost, and SHAP explanations</p>
+        </div>
+        <div id="api-status" class="status-pill">Checking API...</div>
+      </header>
+
+      <div class="workspace">
+        <section class="panel">
+          <div class="tabs">
+            <button class="tab active" data-mode="preset">
+              <svg class="icon"><use href="#icon-terminal"></use></svg>
+              <span>Preset Log</span>
+            </button>
+            <button class="tab" data-mode="upload">
+              <svg class="icon"><use href="#icon-upload"></use></svg>
+              <span>Custom Log</span>
+            </button>
+            <button class="tab" data-mode="manual">
+              <svg class="icon"><use href="#icon-sliders"></use></svg>
+              <span>Manual Fields</span>
+            </button>
+          </div>
+
+          <div id="preset-mode" class="mode active">
+            <h2><svg class="icon"><use href="#icon-terminal"></use></svg>Pre-built Demo Log</h2>
+            <textarea id="preset-log" spellcheck="false"></textarea>
+            <p class="hint">This preset contains branch, timestamp, diff stats, language, author history, and failing test signals.</p>
+            <div class="actions">
+              <button id="run-preset" type="button">
+                <svg class="icon"><use href="#icon-spark"></use></svg>
+                <span>Run Preset Demo</span>
+              </button>
+              <button id="load-safe-preset" class="secondary" type="button">
+                <svg class="icon"><use href="#icon-check"></use></svg>
+                <span>Load Passing Preset</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="upload-mode" class="mode">
+            <h2><svg class="icon"><use href="#icon-upload"></use></svg>Upload Or Paste A Build Log</h2>
+            <label>
+              Log file
+              <input id="log-file" type="file" accept=".log,.txt,.out,text/plain" />
+            </label>
+            <textarea id="custom-log" spellcheck="false" placeholder="Paste a Travis, GitHub Actions, Jenkins, or generic CI log here..."></textarea>
+            <div class="actions">
+              <button id="run-custom" type="button">
+                <svg class="icon"><use href="#icon-spark"></use></svg>
+                <span>Predict From Log</span>
+              </button>
+              <button id="clear-custom" class="secondary" type="button">
+                <svg class="icon"><use href="#icon-terminal"></use></svg>
+                <span>Clear Log</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="manual-mode" class="mode">
+            <h2><svg class="icon"><use href="#icon-sliders"></use></svg>Manual Commit Metadata</h2>
+            <form id="predict-form">
+              <div class="form-grid">
+                <label>Author ID<input name="author_id" type="number" min="1" max="500" value="42" /></label>
+                <label>
+                  Branch
+                  <select name="branch">
+                    <option value="main">main</option>
+                    <option value="feature">feature</option>
+                    <option value="hotfix" selected>hotfix</option>
+                    <option value="release">release</option>
+                  </select>
+                </label>
+                <label>Files Changed<input name="files_changed" type="number" min="1" value="18" /></label>
+                <label>Lines Added<input name="lines_added" type="number" min="0" value="450" /></label>
+                <label>Lines Deleted<input name="lines_deleted" type="number" min="0" value="20" /></label>
+                <label>Commit Message Length<input name="commit_msg_length" type="number" min="1" value="8" /></label>
+                <label>Hour of Commit<input name="hour_of_commit" type="number" min="0" max="23" value="3" /></label>
+                <label>
+                  Day of Week
+                  <select name="day_of_week">
+                    <option value="0">Monday</option>
+                    <option value="1">Tuesday</option>
+                    <option value="2">Wednesday</option>
+                    <option value="3">Thursday</option>
+                    <option value="4">Friday</option>
+                    <option value="5">Saturday</option>
+                    <option value="6" selected>Sunday</option>
+                  </select>
+                </label>
+                <label>
+                  Language
+                  <select name="language">
+                    <option>Python</option>
+                    <option>JavaScript</option>
+                    <option selected>Java</option>
+                    <option>Go</option>
+                    <option>Ruby</option>
+                    <option>C++</option>
+                    <option>TypeScript</option>
+                  </select>
+                </label>
+                <label>
+                  Prior Failure Rate
+                  <span class="range-row">
+                    <input id="prior_failure_rate" name="prior_failure_rate" type="range" min="0" max="1" step="0.01" value="0.65" />
+                    <strong id="rate-value">0.65</strong>
+                  </span>
+                </label>
+              </div>
+              <div class="actions">
+                <button id="predict-button" type="submit">
+                  <svg class="icon"><use href="#icon-spark"></use></svg>
+                  <span>Predict Build Outcome</span>
+                </button>
+                <button id="sync-log-fields" class="secondary" type="button">
+                  <svg class="icon"><use href="#icon-database"></use></svg>
+                  <span>Use Current Log Fields</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <div class="right-stack">
+          <section id="result" class="panel">
+            <p class="empty">Run the preset demo or upload a log to see a prediction, confidence score, and SHAP risk factors.</p>
+          </section>
+          <section id="features" class="panel">
+            <h2><svg class="icon"><use href="#icon-database"></use></svg>Extracted Features</h2>
+            <p class="empty">Parsed log features will appear here before they are sent through the trained pipeline.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const failingPreset = `Build id: 982104
+author_id: 7
+branch: hotfix/payment-timeout
+language: Java
+commit_time: 2026-05-10T03:12:00+00:00
+commit message: fix
+commit message length: 8
+files changed: 18
+lines added: 450
+lines deleted: 10
+
+$ mvn test
+[INFO] Running payment.gateway.TimeoutPolicyTest
+[WARNING] Deprecated retry policy detected
+[ERROR] Tests run: 128, Failures: 4, Errors: 2, Skipped: 0
+[ERROR] payment.gateway.TimeoutPolicyTest.shouldRollbackOnProviderTimeout
+java.lang.AssertionError: expected:<COMMITTED> but was:<ROLLED_BACK>
+[ERROR] Build failure
+Done. Your build exited with 1.`;
+
+      const passingPreset = `Build id: 982205
+author_id: 19
+branch: main
+language: Python
+commit_time: 2026-05-12T14:18:00+00:00
+commit message: improve cache key validation for build artifacts
+commit message length: 49
+files changed: 4
+lines added: 82
+lines deleted: 14
+
+$ pip install -r requirements.txt
+$ pytest
+tests/test_cache.py ................
+tests/test_api.py ..................
+====================== 42 passed in 18.4s ======================
+Done. Your build exited with 0.`;
+
+      const tabs = document.querySelectorAll(".tab");
+      const modes = document.querySelectorAll(".mode");
+      const result = document.getElementById("result");
+      const featuresPanel = document.getElementById("features");
+      const statusPill = document.getElementById("api-status");
+      const presetLog = document.getElementById("preset-log");
+      const customLog = document.getElementById("custom-log");
+      const form = document.getElementById("predict-form");
+      const rate = document.getElementById("prior_failure_rate");
+      const rateValue = document.getElementById("rate-value");
+      const apiBase = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : "";
+      let latestFeatures = null;
+
+      presetLog.value = failingPreset;
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          tabs.forEach((item) => item.classList.remove("active"));
+          modes.forEach((item) => item.classList.remove("active"));
+          tab.classList.add("active");
+          document.getElementById(`${tab.dataset.mode}-mode`).classList.add("active");
+        });
+      });
+
+      rate.addEventListener("input", () => {
+        rateValue.textContent = Number(rate.value).toFixed(2);
+      });
+
+      document.getElementById("load-safe-preset").addEventListener("click", () => {
+        presetLog.value = passingPreset;
+      });
+
+      document.getElementById("log-file").addEventListener("change", async (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        customLog.value = await file.text();
+      });
+
+      document.getElementById("clear-custom").addEventListener("click", () => {
+        customLog.value = "";
+      });
+
+      document.getElementById("run-preset").addEventListener("click", () => {
+        predictFromLog(presetLog.value);
+      });
+
+      document.getElementById("run-custom").addEventListener("click", () => {
+        predictFromLog(customLog.value);
+      });
+
+      document.getElementById("sync-log-fields").addEventListener("click", () => {
+        if (!latestFeatures) return;
+        fillForm(latestFeatures);
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await predictFromFields(readForm());
+      });
+
+      function apiUrl(path) {
+        return `${apiBase}${path}`;
+      }
+
+      async function checkHealth() {
+        try {
+          const response = await fetch(apiUrl("/health"));
+          const data = await response.json();
+          statusPill.textContent = data.model_loaded ? "Model loaded" : "Model missing";
+          statusPill.style.color = data.model_loaded ? "var(--pass)" : "var(--warn)";
+        } catch {
+          statusPill.textContent = apiBase ? "Start API on :8000" : "API offline";
+          statusPill.style.color = "var(--fail)";
+        }
+      }
+
+      function setLoading() {
+        result.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+      }
+
+      function renderError(message) {
+        result.innerHTML = `<p class="error">${message}</p>`;
+      }
+
+      function renderFeatures(features) {
+        latestFeatures = features;
+        const rows = Object.entries(features)
+          .map(([key, value]) => `<div class="feature-row"><span>${key}</span><strong>${value}</strong></div>`)
+          .join("");
+        featuresPanel.innerHTML = `<h2><svg class="icon"><use href="#icon-database"></use></svg>Extracted Features</h2><div class="features">${rows}</div>`;
+      }
+
+      function renderResult(data) {
+        const prediction = data.prediction || data.prediction?.prediction;
+        const payload = data.prediction ? data : data.prediction;
+        const kind = payload.prediction === "FAIL" ? "fail" : "pass";
+        const percent = Math.round(payload.confidence * 100);
+        const maxImpact = Math.max(...payload.top_risk_factors.map((factor) => Math.abs(factor.impact)), 0.001);
+        const factors = payload.top_risk_factors
+          .map((factor) => {
+            const width = Math.max(4, (Math.abs(factor.impact) / maxImpact) * 100);
+            return `
+              <div>
+                <div class="factor-label">
+                  <span>${factor.feature}</span>
+                  <strong>${factor.impact.toFixed(4)}</strong>
+                </div>
+                <div class="factor-track"><div class="factor-fill" style="width:${width}%"></div></div>
+              </div>
+            `;
+          })
+          .join("");
+
+        result.innerHTML = `
+          <div class="badge ${kind}">${payload.prediction}</div>
+          <div class="metric">
+            <div class="metric-row"><span>Confidence</span><strong>${percent}%</strong></div>
+            <div class="track"><div class="fill" style="width:${percent}%"></div></div>
+          </div>
+          <span class="risk">${payload.risk_level} risk</span>
+          <div class="factors">${factors}</div>
+        `;
+      }
+
+      async function predictFromLog(logText) {
+        if (!logText.trim()) {
+          renderError("Please provide a log before running prediction.");
+          return;
+        }
+        setLoading();
+        try {
+          const response = await fetch(apiUrl("/predict-log"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ log_text: logText }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Log prediction failed");
+          renderFeatures(data.features);
+          fillForm(data.features);
+          renderResult(data.prediction);
+        } catch (error) {
+          renderError(error.message || "API is not reachable");
+        }
+      }
+
+      async function predictFromFields(payload) {
+        setLoading();
+        try {
+          const response = await fetch(apiUrl("/predict"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Prediction failed");
+          renderFeatures(payload);
+          renderResult(data);
+        } catch (error) {
+          renderError(error.message || "API is not reachable");
+        }
+      }
+
+      function readForm() {
+        const data = new FormData(form);
+        return {
+          author_id: Number(data.get("author_id")),
+          files_changed: Number(data.get("files_changed")),
+          lines_added: Number(data.get("lines_added")),
+          lines_deleted: Number(data.get("lines_deleted")),
+          commit_msg_length: Number(data.get("commit_msg_length")),
+          hour_of_commit: Number(data.get("hour_of_commit")),
+          day_of_week: Number(data.get("day_of_week")),
+          branch: data.get("branch"),
+          language: data.get("language"),
+          prior_failure_rate: Number(data.get("prior_failure_rate")),
+        };
+      }
+
+      function fillForm(values) {
+        Object.entries(values).forEach(([key, value]) => {
+          const field = form.elements[key];
+          if (field) field.value = value;
+        });
+        rateValue.textContent = Number(form.elements.prior_failure_rate.value).toFixed(2);
+      }
+
+      checkHealth();
+    </script>
+  </body>
+</html>
